@@ -25,7 +25,9 @@ The app uses Streamlit and GeoPandas to visualize user-provided WGS84 (EPSG:4326
 
 # How to use 
 - Install dependencies:
-  pip install -r requirements.txt
+    ```
+    pip install -r requirements.txt
+    ```
 - Ensure your data is a GeoJSON file with WGS84 coordinates (EPSG:4326)
 - Run the app using the following command:
     ```
