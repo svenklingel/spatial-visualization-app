@@ -1,4 +1,4 @@
-This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided WGS84 (EPSG:4326) GeoJSON files.
+This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided WGS84 (EPSG:4326) GeoJSON files using the geopandas.GeoDataFrame.explore method. 
 
 ## Features
 - Visualize spatial data 
@@ -13,12 +13,12 @@ This app is developed using the Spiral Model and utilizes Streamlit and GeoPanda
 
 2. Numeric data 
 - Classifies numeric column values
-- Selectable classification scheme
+- Selectable classification scheme (supported are all schemes provided by mapclassify)
 - Adjustable number of classes 
 
 3️. Categorical data  
 - Shows distinct values from a column 
-- Choosable matplotlib colormap
+- Choosable Matplotlib colormap
 
 4. Heatmap  
 - Visualize point density 
@@ -41,4 +41,3 @@ This app is developed using the Spiral Model and utilizes Streamlit and GeoPanda
 - Ability to define the minimum and maximum values of the Matplotlib colormap used for numeric visualizations (supported via the `vmin` and `vmax` parameters of `explore()`)
 - Ability to define a custom ordered list of categories for categorical plotting instead of using the column's unique values
 - Support for additional visualization types, including spatio-temporal visualizations
--
