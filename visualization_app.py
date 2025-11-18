@@ -162,15 +162,20 @@ def main():
         if not st.session_state["geodataframes"]:
             st.info("Upload GeoJSON files to get started.")
             st.stop()
-        
+
         # Select GeoDataFrame
         gdf_names = list(st.session_state["geodataframes"].keys())
+
+        # Show latest GDF by default
+        default_index = len(gdf_names) - 1 if gdf_names else 0
+
         selected_gdf = st.selectbox(
             "Select GeoDataFrame",
             gdf_names,
+            index=default_index,
             help="Choose the GeoDataFrame to visualize"
         )
-        
+
         if selected_gdf:
             gdf = st.session_state["geodataframes"][selected_gdf]
             
