@@ -130,7 +130,7 @@ def main():
         # Map export and clear logic
         with col1:
             # Export interactive map as HTML 
-            if st.button("Export", use_container_width=True):
+            if st.button("Export", width="stretch"):
                 timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
                 output_path = "./Output/Maps"
                 os.makedirs(output_path, exist_ok=True)
@@ -144,7 +144,7 @@ def main():
         
         with col2:
             # Clear map window and remove GeoDataFrames from session state
-            if st.button("Clear", use_container_width=True):
+            if st.button("Clear", width="stretch"):
                 st.session_state["map"] = create_map()
                 st.session_state["geodataframes"] = {}
                 st.success("Map cleared!")
@@ -182,9 +182,16 @@ def main():
                     geom_types = gdf.geometry.type.unique().tolist()
                     st.write("**Geometry types:**")
                     st.write(", ".join(geom_types))
-                
-                st.dataframe(gdf, use_container_width=True)
-            
+
+                # Display GeoDataFrame with WKT (avoid serialization issues with geometry column)
+                gdf["wkt"] = gdf.geometry.astype("string")
+
+                # Use all columns except geometry for display
+                cols_without_geometry = [c for c in gdf.columns if c != "geometry"]
+
+                # Show DataFrame without geometry column
+                st.dataframe(gdf[cols_without_geometry], width="stretch")
+                            
             st.divider()
             
             # Layer name
@@ -324,7 +331,7 @@ def main():
             st.divider()
             
             # Visualization button executes visualize method of the VisualizationTool object
-            if st.button("Visualize", type="primary", use_container_width=True):
+            if st.button("Visualize", type="primary", width="stretch"):
                 with st.spinner("Creating visualization..."):
                     viz_tool = VisualizationTool(
                         folium_map=st.session_state["map"],
