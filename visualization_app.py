@@ -61,6 +61,9 @@ def main():
     """, unsafe_allow_html=True)
     
     # Initialize session states to store objects persistently between reruns
+    if "layers" not in st.session_state:
+        st.session_state["layers"] = {}
+
     if "geodataframes" not in st.session_state:
         st.session_state["geodataframes"] = {}
     if "map" not in st.session_state:
@@ -202,11 +205,23 @@ def main():
             st.divider()
             
             # Layer name
+            existing_layers = st.session_state.get("layers", {}).keys()
+
+            base_name = f"Layer_{selected_gdf}"
+            layer_name_default = base_name
+
+            # Falls Name schon existiert → durchnummerieren
+            i = 1
+            while layer_name_default in existing_layers:
+                layer_name_default = f"{base_name}_{i}"
+                i += 1
+
             layer_name = st.text_input(
                 "Layer name",
-                value=f"Layer_{selected_gdf}",
+                value=layer_name_default,
                 help="Name for this layer on the map"
             )
+            
             
             # Visualization type
             viz_type = st.radio(
@@ -354,6 +369,8 @@ def main():
                         geometries=use_geometries
                     )
                     if result:
+                        # Add layer name to state
+                        st.session_state["layers"][layer_name] = layer_name
                         st.success(result) 
                     else:
                         st.error(result) # Display error message
