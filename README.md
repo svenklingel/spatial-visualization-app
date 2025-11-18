@@ -1,11 +1,11 @@
-This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided WGS84 (EPSG:4326) GeoJSON files using the geopandas.GeoDataFrame.explore method. 
+This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided GeoJSON files using the geopandas.GeoDataFrame.explore method. 
 
 ## Features
 - Visualize spatial data 
 - Export interactive maps as HTML
 
 ## Supported Formats
-- GeoJSON in WGS84 (EPSG:4326)
+- GeoJSON 
             
 ## Visualization Types
 1. Geometrical data  
@@ -28,7 +28,7 @@ This app is developed using the Spiral Model and utilizes Streamlit and GeoPanda
     ```
     pip install -r requirements.txt
     ```
-- Ensure your data is a GeoJSON file with WGS84 coordinates (EPSG:4326)
+- Ensure your data is a GeoJSON file
 - Run the app using the following command:
     ```
     streamlit run visualization_app.py
