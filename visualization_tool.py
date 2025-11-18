@@ -17,11 +17,15 @@ def add_layer_control(map):
 def fit_map(gdf, map):
     """Zoom to the Bbox of the last visualized GeoDataframe"""
     minx, miny, maxx, maxy = gdf.total_bounds
-    transformer = Transformer.from_crs("EPSG:25832", "EPSG:4326", always_xy=True)
-    minx_wgs84, miny_wgs84 = transformer.transform(minx, miny)
-    maxx_wgs84, maxy_wgs84 = transformer.transform(maxx, maxy)
-    map.fit_bounds([[miny_wgs84, minx_wgs84], [maxy_wgs84, maxx_wgs84]])
-
+    
+    # Transform coordinates from the GeoDataFrame CRS to target EPSG
+    transformer = Transformer.from_crs(gdf.crs, "EPSG:4326", always_xy=True)
+    minx_t, miny_t = transformer.transform(minx, miny)
+    maxx_t, maxy_t = transformer.transform(maxx, maxy)
+    
+    # Fit map bounds (folium uses [lat, lon])
+    map.fit_bounds([[miny_t, minx_t], [maxy_t, maxx_t]])
+   
 def clear_map_html(html_content):
     """Remove old LayerControls"""
     layer_control_var_pattern = r'var layer_control_[a-f0-9]+_layers = \{[^}]+\};'
