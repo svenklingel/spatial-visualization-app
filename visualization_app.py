@@ -1,10 +1,11 @@
-# Streamlit app to inspect and visualize data of GeoDataFrames created from user-uploaded WGS84 (EPSG:4326) GeoJSON files
+# Streamlit app to inspect and visualize data of GeoDataFrames created from user-uploaded GeoJSON files
 
 import os
 from datetime import datetime
 import geopandas as gpd
 import streamlit as st
 import streamlit.components.v1 as components
+import importlib
 
 # Used for creating visualizations
 from visualization_tool import (
@@ -40,6 +41,7 @@ def load_data(uploaded_file):
 
 # Streamlit app logic
 def main():
+
     st.set_page_config(
         page_title="Visualization app",
         page_icon="🗺️",
@@ -71,7 +73,7 @@ def main():
         st.title("Visualization app")
         with st.expander("Info", expanded=False):
             st.markdown("""
-            This app uses Streamlit and GeoPandas to visualize user-provided WGS84 (EPSG:4326) GeoJSON files.
+            This app uses Streamlit and GeoPandas to visualize user-provided GeoJSON files.
                         
             ## Features
             - Visualize spatial data
@@ -101,11 +103,11 @@ def main():
         
         st.divider()
         
-        # File upload: WGS84 GeoJSON files
+        # File upload: GeoJSON files
         # TODO: Support for other data formats
         st.subheader("Upload Data")
         uploaded_files = st.file_uploader(
-            "Upload GeoJSON files in WGS84 (EPSG:4326)",
+            "Upload GeoJSON files",
             type=["geojson"],
             accept_multiple_files=True,
             key=st.session_state["file_uploader_key"],
