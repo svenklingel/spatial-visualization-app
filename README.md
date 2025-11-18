@@ -35,9 +35,8 @@ This app is developed using the Spiral Model and utilizes Streamlit and GeoPanda
     ```
 
 # Possible features for future iterations
-- Support for more file formats and different CRSs
-- Export maps as PNG
-- Support for user-provided categories
+- Support for more file formats
+- Export maps as images
+- Support for user-defined categories
 - Ability to define the minimum and maximum values of the Matplotlib colormap used for numeric visualizations (supported via the `vmin` and `vmax` parameters of `explore()`)
-- Ability to define a custom ordered list of categories for categorical plotting instead of using the column's unique values
 - Support for additional visualization types, including spatio-temporal visualizations
