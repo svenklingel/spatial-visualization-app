@@ -1,5 +1,8 @@
 This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided GeoJSON files using the geopandas.GeoDataFrame.explore method. 
 
+
+![Alt text](Example.jpeg)
+
 ## Features
 - Visualize spatial data 
 - Export interactive maps as HTML
