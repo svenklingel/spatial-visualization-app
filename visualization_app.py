@@ -83,7 +83,7 @@ def main():
             - Export interactive maps as HTML
             
             ## Supported Formats
-            - GeoJSON in EPSG:4326
+            - GeoJSON
                         
             ## Visualization Types
 
@@ -114,7 +114,7 @@ def main():
             type=["geojson"],
             accept_multiple_files=True,
             key=st.session_state["file_uploader_key"],
-            help="Upload one or more GeoJSON files in EPSG:4326"
+            help="Upload one or more GeoJSON files."
         )
         
         if uploaded_files:
