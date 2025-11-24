@@ -19,7 +19,7 @@ This app is developed using the Spiral Model and utilizes Streamlit and GeoPanda
 - Selectable classification scheme (supported are all schemes provided by mapclassify)
 - Adjustable number of classes 
 
-3️. Categorical data  
+3. . Categorical data  
 - Shows distinct values from a column 
 - Choosable Matplotlib colormap
 
