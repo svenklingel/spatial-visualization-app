@@ -31,6 +31,7 @@ This app is developed using Spiral model–driven initial development and Scrum-
     ```
     git clone https://github.com/svenklingel/spatial-visualization-app
     ```
+- Install Python >= 3.13
 - Create a virtual environment
     ```
     python -m venv venv
