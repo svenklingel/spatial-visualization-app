@@ -1,13 +1,16 @@
-# Tool to visualize data of GeoDataFrames created from user-uploaded WGS84 (EPSG:4326) GeoJSON files using GeoDataFrame.explore()
+# Tool to visualize GeoDataFrames using GeoDataFrame.explore() for interactive maps or plot() for static maps.
 
 import re
 import geopandas as gpd
 import folium as f
-from typing import Dict, Optional
+import matplotlib.pyplot as plt
+import contextily as ctx
+from typing import Dict, Optional, Literal
 from folium.plugins import HeatMap, Draw, Geocoder, MousePosition, Fullscreen, LocateControl, MeasureControl
 from enum import Enum
 from pydantic import BaseModel, Field
 from pyproj import Transformer
+import PIL
 
 # Helper functions 
 def add_layer_control(map):
@@ -91,7 +94,6 @@ def create_map():
     layer_right.add_to(m)
     sbs.add_to(m)
 
-
     # Adds the possibility to choose the layers to display
     f.LayerControl().add_to(m)
 
@@ -142,10 +144,10 @@ class Categorical(BaseModel):
     cmap: str = Field(description="Matplotlib Colormap Name")
     legend_caption: str = Field(description="Legend title")
 
-# Used as wrapper for GeoDataFrame.explore()
+# Used as wrapper for GeoDataFrame.explore() and plot()
 class VisualizationTool:
     """
-    Tool for visualizing GeoDataFrames based on GeoDataFrame.explore with various options:
+    Tool for visualizing GeoDataFrames based on GeoDataFrame.explore or plot with various options:
     - Numeric data
     - Categorical data
     - Heatmap 
@@ -160,26 +162,36 @@ class VisualizationTool:
         """
         self.map = folium_map
         self.env = gdf_environment
+        self.current_fig = None
+        self.current_ax = None
     
     def visualize(
         self,
         gdf_name: str,
         layer_name: str,
+        method: Literal["explore", "plot"] = "explore",
         numeric: Optional[Numeric] = None,
         categorical: Optional[Categorical] = None,
         heatmap: bool = False,
-        geometries: bool = False
+        geometries: bool = False,
+        figsize: tuple = (12, 8),
+        basemap: str = "OpenStreetMap.Mapnik",
+        basemap_alpha: float = 0.5
     ) -> str:
         """
-        Visualizes a GeoDataFrame on the map.
+        Visualizes a GeoDataFrame on the map or as static plot.
 
         Args:
             gdf_name: Name of the GeoDataFrame to visualize
-            layer_name: Name of the layer on the map
+            layer_name: Name of the layer on the map / plot title
+            method: Visualization method - "explore" (interactive) or "plot" (static)
             numeric: Parameters for numeric visualization
             categorical: Parameters for categorical visualization
             heatmap: Whether to create a heatmap
             geometries: Whether to visualize only geometries
+            figsize: Figure size for plot method (width, height)
+            basemap: Basemap provider for plot method (e.g., "OpenStreetMap.Mapnik", "OpenTopoMap", "CartoDB.Positron")
+            basemap_alpha: Transparency of basemap (0.0 = transparent, 1.0 = opaque)
 
         Returns:
             True if successful, error message otherwise
@@ -191,7 +203,7 @@ class VisualizationTool:
         if not (numeric or categorical or heatmap or geometries):
             return "At least one visualization option must be provided."
         
-        # GeoDataFrame abrufen
+        # Get GeoDataFrame
         if gdf_name not in self.env:
             return f"{gdf_name} is not a valid GeoDataFrame name. Available: {list(self.env.keys())}"
         
@@ -199,36 +211,97 @@ class VisualizationTool:
         if not isinstance(gdf, gpd.GeoDataFrame):
             return f"{gdf_name} is of type {type(gdf)} which is not supported."
         
-        # Its needed to remove the current LayerControl and add the new one later otherwise there will be more than one
+        # Route to appropriate method
+        if method == "explore":
+            return self._visualize_explore(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries)
+        elif method == "plot":
+            return self._visualize_plot(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries, 
+                                       figsize, basemap, basemap_alpha)
+        else:
+            return f"Invalid method '{method}'. Use 'explore' or 'plot'."
+    
+    def _visualize_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, layer_name: str,
+                          numeric, categorical, heatmap, geometries):
+        """Handle visualization using explore method"""
+        # Remove current LayerControl
         for item in list(self.map._children):
             if item.startswith('layer_control'):
                 del self.map._children[item]
         
         # Create visualization based on the selected type
         if numeric:
-            return self._visualize_numeric(gdf, gdf_name, layer_name, numeric)
+            return self._visualize_numeric_explore(gdf, gdf_name, layer_name, numeric)
         elif categorical:
-            return self._visualize_categorical(gdf, gdf_name, layer_name, categorical)
+            return self._visualize_categorical_explore(gdf, gdf_name, layer_name, categorical)
         elif heatmap:
-            return self._visualize_heatmap(gdf, gdf_name, layer_name)
+            return self._visualize_heatmap_explore(gdf, gdf_name, layer_name)
         elif geometries:
-            return self._visualize_geometries(gdf, gdf_name, layer_name)
+            return self._visualize_geometries_explore(gdf, gdf_name, layer_name)
     
-    def _visualize_numeric(self, gdf: gpd.GeoDataFrame, gdf_name: str, 
+    def _visualize_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str, layer_name: str,
+                       numeric, categorical, heatmap, geometries, figsize, basemap, basemap_alpha):
+        """Handle visualization using plot method"""
+        # Create new figure for this visualization
+        self.current_fig, self.current_ax = plt.subplots(1, 1, figsize=figsize)
+        
+        # Store original GeoDataFrame for basemap bounds
+        gdf_original = gdf.copy()
+        
+        # Create visualization based on the selected type
+        result = None
+        if numeric:
+            result = self._visualize_numeric_plot(gdf, gdf_name, layer_name, numeric)
+        elif categorical:
+            result = self._visualize_categorical_plot(gdf, gdf_name, layer_name, categorical)
+        elif heatmap:
+            result = self._visualize_heatmap_plot(gdf, gdf_name, layer_name)
+        elif geometries:
+            result = self._visualize_geometries_plot(gdf, gdf_name, layer_name)
+        
+        # Add basemap if visualization was successful
+        if result is True:
+            try:
+                # Get basemap source
+                basemap_source = self._get_basemap_source(basemap)
+                
+                # Add basemap with contextily
+                ctx.add_basemap(
+                    self.current_ax,
+                    source=basemap_source,
+                    zoom='auto',
+                    alpha=basemap_alpha
+                )
+            except Exception as e:
+                print(f"Warning: Could not add basemap. Error: {str(e)}")
+        
+        return result
+    
+    def _get_basemap_source(self, basemap: str):
+        """Get contextily basemap source from string"""
+        basemap_dict = {
+            "OpenStreetMap.Mapnik": ctx.providers.OpenStreetMap.Mapnik,
+            "OpenTopoMap": ctx.providers.OpenTopoMap,
+            "CartoDB.Positron": ctx.providers.CartoDB.Positron,
+            "CartoDB.DarkMatter": ctx.providers.CartoDB.DarkMatter,
+            "Stamen.Terrain": ctx.providers.Stamen.Terrain,
+            "Stamen.Toner": ctx.providers.Stamen.Toner,
+            "Stamen.TonerLite": ctx.providers.Stamen.TonerLite,
+        }
+        
+        return basemap_dict.get(basemap, ctx.providers.OpenStreetMap.Mapnik)
+    
+    def _visualize_numeric_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, 
                           layer_name: str, params: Numeric) -> str:
-        """Visualize data of a numeric column"""
+        """Visualize data of a numeric column using explore"""
         try:
             column = params.gdf_column
             
-            # Check if selected column is available
             if column not in gdf.columns:
                 return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
             
-            # Check if column is numeric
             if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
                 return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
             
-            # Add the new visualization data to the folium.map
             gdf.explore(
                 popup=True,
                 tooltip=column,
@@ -243,19 +316,51 @@ class VisualizationTool:
                 style_kwds={"fillOpacity": "0.85", "weight": "1.5"}
             )
             
-            # Add the new LayerControl
             add_layer_control(self.map)
-
-            # Zoom the map to the Bbox of the last added layer
             fit_map(gdf, self.map)
             return True
         except Exception as e:
             add_layer_control(self.map)
             return f"Could not visualize numeric column '{column}' of {gdf_name}. Error: {str(e)}"
     
-    def _visualize_categorical(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+    def _visualize_numeric_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+                               layer_name: str, params: Numeric) -> str:
+        """Visualize data of a numeric column using plot"""
+        try:
+            column = params.gdf_column
+            
+            if column not in gdf.columns:
+                return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
+            
+            if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
+                return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
+            
+            # Convert to Web Mercator for contextily compatibility
+            gdf_plot = gdf.to_crs(epsg=3857)
+            
+            gdf_plot.plot(
+                column=column,
+                ax=self.current_ax,
+                legend=True,
+                k=params.k,
+                scheme=params.scheme.name,
+                cmap=params.cmap,
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=0.7
+            )
+            
+            self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
+            self.current_ax.set_axis_off()
+            plt.tight_layout()
+            
+            return True
+        except Exception as e:
+            return f"Could not visualize numeric column '{column}' of {gdf_name}. Error: {str(e)}"
+    
+    def _visualize_categorical_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str,
                               layer_name: str, params: Categorical) -> str:
-        """Visualize data of a categorical column"""
+        """Visualize data of a categorical column using explore"""
         try:
             column = params.gdf_column
             
@@ -283,21 +388,49 @@ class VisualizationTool:
             add_layer_control(self.map)
             return f"Could not visualize categorical column '{column}' of {gdf_name}. Error: {str(e)}"
     
-    def _visualize_heatmap(self, gdf: gpd.GeoDataFrame, gdf_name: str,
-                          layer_name: str) -> str:
-        """Visualize the density of points."""
+    def _visualize_categorical_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+                                   layer_name: str, params: Categorical) -> str:
+        """Visualize data of a categorical column using plot"""
         try:
-            # Only use valid point geoemtries
+            column = params.gdf_column
+            
+            if column not in gdf.columns:
+                return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
+            
+            # Convert to Web Mercator for contextily compatibility
+            gdf_plot = gdf.to_crs(epsg=3857)
+            
+            gdf_plot.plot(
+                column=column,
+                ax=self.current_ax,
+                legend=True,
+                cmap=params.cmap,
+                categorical=True,
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=0.7
+            )
+            
+            self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
+            self.current_ax.set_axis_off()
+            plt.tight_layout()
+            
+            return True
+        except Exception as e:
+            return f"Could not visualize categorical column '{column}' of {gdf_name}. Error: {str(e)}"
+    
+    def _visualize_heatmap_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+                          layer_name: str) -> str:
+        """Visualize the density of points using explore"""
+        try:
             point_gdf = gdf[gdf.geometry.type == 'Point']
             
             if len(point_gdf) == 0:
                 return f"No point geometries found in {gdf_name}. Geometry types: {gdf.geometry.type.unique().tolist()}"
             
-            # Convert to WGS84 and create a list of lists of coordinates value pairs (x,y)
             heat_data = [[point.xy[1][0], point.xy[0][0]] 
                         for point in point_gdf.geometry.to_crs(epsg=4326)]
             
-            # Add heatmap layer to the map
             HeatMap(heat_data).add_to(
                 f.FeatureGroup(name=layer_name).add_to(self.map)
             )
@@ -310,9 +443,48 @@ class VisualizationTool:
             add_layer_control(self.map)
             return f"Could not create heatmap for {gdf_name}. Error: {str(e)}"
     
-    def _visualize_geometries(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+    def _visualize_heatmap_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+                               layer_name: str) -> str:
+        """Visualize the density of points using Folium HeatMap converted to image"""
+        try:
+            import io
+            from PIL import Image
+            
+            point_gdf = gdf[gdf.geometry.type == 'Point']
+            
+            if len(point_gdf) == 0:
+                return f"No point geometries found in {gdf_name}. Geometry types: {gdf.geometry.type.unique().tolist()}"
+            
+            # Convert to WGS84 for folium
+            heat_data = [[point.xy[1][0], point.xy[0][0]] 
+                        for point in point_gdf.geometry.to_crs(epsg=4326)]
+            
+            # Create temporary folium map with HeatMap
+            center_lat = point_gdf.geometry.to_crs(epsg=4326).y.mean()
+            center_lon = point_gdf.geometry.to_crs(epsg=4326).x.mean()
+            
+            temp_map = f.Map(location=[center_lat, center_lon], zoom_start=12, tiles='OpenStreetMap')
+            HeatMap(heat_data).add_to(temp_map)
+            
+            # Fit to heatmap data
+            fit_map(gdf, temp_map)
+            # Convert folium map to PNG
+            img_data = temp_map._to_png(5)  # delay in seconds for rendering
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Display image in matplotlib axes
+            self.current_ax.imshow(img)
+            self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
+            self.current_ax.set_axis_off()
+            plt.tight_layout()
+            
+            return True
+        except Exception as e:
+            return f"Could not create heatmap for {gdf_name}. Error: {str(e)}"
+    
+    def _visualize_geometries_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str,
                              layer_name: str) -> str:
-        """Visualize only geometries"""
+        """Visualize only geometries using explore"""
         try:
             gdf.explore(
                 popup=True,
@@ -329,3 +501,41 @@ class VisualizationTool:
         except Exception as e:
             add_layer_control(self.map)
             return f"Could not visualize geometries of {gdf_name}. Error: {str(e)}"
+    
+    def _visualize_geometries_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str,
+                                  layer_name: str) -> str:
+        """Visualize only geometries using plot"""
+        try:
+            # Convert to Web Mercator for contextily compatibility
+            gdf_plot = gdf.to_crs(epsg=3857)
+            
+            gdf_plot.plot(
+                ax=self.current_ax,
+                edgecolor='black',
+                facecolor='lightblue',
+                linewidth=0.5,
+                alpha=0.7
+            )
+            
+            self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
+            self.current_ax.set_axis_off()
+            plt.tight_layout()
+            
+            return True
+        except Exception as e:
+            return f"Could not visualize geometries of {gdf_name}. Error: {str(e)}"
+    
+    def show_plot(self):
+        """Display the current plot"""
+        if self.current_fig:
+            plt.show()
+        else:
+            print("No plot to show. Create a visualization first with method='plot'.")
+    
+    def save_plot(self, filename: str, dpi: int = 300):
+        """Save the current plot to file"""
+        if self.current_fig:
+            self.current_fig.savefig(filename, dpi=dpi, bbox_inches='tight')
+            print(f"Plot saved to {filename}")
+        else:
+            print("No plot to save. Create a visualization first with method='plot'.")
