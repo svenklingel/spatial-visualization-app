@@ -4,7 +4,6 @@ import re
 import geopandas as gpd
 import folium as f
 import matplotlib.pyplot as plt
-import contextily as ctx
 from typing import Dict, Optional, Literal
 from folium.plugins import HeatMap, Draw, Geocoder, MousePosition, Fullscreen, LocateControl, MeasureControl
 from enum import Enum
@@ -174,9 +173,7 @@ class VisualizationTool:
         categorical: Optional[Categorical] = None,
         heatmap: bool = False,
         geometries: bool = False,
-        figsize: tuple = (12, 8),
-        basemap: str = "OpenStreetMap.Mapnik",
-        basemap_alpha: float = 0.5
+        figsize: tuple = (12, 8)
     ) -> str:
         """
         Visualizes a GeoDataFrame on the map or as static plot.
@@ -190,8 +187,6 @@ class VisualizationTool:
             heatmap: Whether to create a heatmap
             geometries: Whether to visualize only geometries
             figsize: Figure size for plot method (width, height)
-            basemap: Basemap provider for plot method (e.g., "OpenStreetMap.Mapnik", "OpenTopoMap", "CartoDB.Positron")
-            basemap_alpha: Transparency of basemap (0.0 = transparent, 1.0 = opaque)
 
         Returns:
             True if successful, error message otherwise
@@ -215,8 +210,7 @@ class VisualizationTool:
         if method == "explore":
             return self._visualize_explore(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries)
         elif method == "plot":
-            return self._visualize_plot(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries, 
-                                       figsize, basemap, basemap_alpha)
+            return self._visualize_plot(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries, figsize)
         else:
             return f"Invalid method '{method}'. Use 'explore' or 'plot'."
     
@@ -239,56 +233,20 @@ class VisualizationTool:
             return self._visualize_geometries_explore(gdf, gdf_name, layer_name)
     
     def _visualize_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str, layer_name: str,
-                       numeric, categorical, heatmap, geometries, figsize, basemap, basemap_alpha):
+                       numeric, categorical, heatmap, geometries, figsize):
         """Handle visualization using plot method"""
         # Create new figure for this visualization
         self.current_fig, self.current_ax = plt.subplots(1, 1, figsize=figsize)
         
-        # Store original GeoDataFrame for basemap bounds
-        gdf_original = gdf.copy()
-        
         # Create visualization based on the selected type
-        result = None
         if numeric:
-            result = self._visualize_numeric_plot(gdf, gdf_name, layer_name, numeric)
+            return self._visualize_numeric_plot(gdf, gdf_name, layer_name, numeric)
         elif categorical:
-            result = self._visualize_categorical_plot(gdf, gdf_name, layer_name, categorical)
+            return self._visualize_categorical_plot(gdf, gdf_name, layer_name, categorical)
         elif heatmap:
-            result = self._visualize_heatmap_plot(gdf, gdf_name, layer_name)
+            return self._visualize_heatmap_plot(gdf, gdf_name, layer_name)
         elif geometries:
-            result = self._visualize_geometries_plot(gdf, gdf_name, layer_name)
-        
-        # Add basemap if visualization was successful
-        if result is True:
-            try:
-                # Get basemap source
-                basemap_source = self._get_basemap_source(basemap)
-                
-                # Add basemap with contextily
-                ctx.add_basemap(
-                    self.current_ax,
-                    source=basemap_source,
-                    zoom='auto',
-                    alpha=basemap_alpha
-                )
-            except Exception as e:
-                print(f"Warning: Could not add basemap. Error: {str(e)}")
-        
-        return result
-    
-    def _get_basemap_source(self, basemap: str):
-        """Get contextily basemap source from string"""
-        basemap_dict = {
-            "OpenStreetMap.Mapnik": ctx.providers.OpenStreetMap.Mapnik,
-            "OpenTopoMap": ctx.providers.OpenTopoMap,
-            "CartoDB.Positron": ctx.providers.CartoDB.Positron,
-            "CartoDB.DarkMatter": ctx.providers.CartoDB.DarkMatter,
-            "Stamen.Terrain": ctx.providers.Stamen.Terrain,
-            "Stamen.Toner": ctx.providers.Stamen.Toner,
-            "Stamen.TonerLite": ctx.providers.Stamen.TonerLite,
-        }
-        
-        return basemap_dict.get(basemap, ctx.providers.OpenStreetMap.Mapnik)
+            return self._visualize_geometries_plot(gdf, gdf_name, layer_name)
     
     def _visualize_numeric_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, 
                           layer_name: str, params: Numeric) -> str:
@@ -335,10 +293,7 @@ class VisualizationTool:
             if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
                 return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
             
-            # Convert to Web Mercator for contextily compatibility
-            gdf_plot = gdf.to_crs(epsg=3857)
-            
-            gdf_plot.plot(
+            gdf.plot(
                 column=column,
                 ax=self.current_ax,
                 legend=True,
@@ -346,8 +301,7 @@ class VisualizationTool:
                 scheme=params.scheme.name,
                 cmap=params.cmap,
                 edgecolor='black',
-                linewidth=0.5,
-                alpha=0.7
+                linewidth=0.5
             )
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
@@ -397,18 +351,14 @@ class VisualizationTool:
             if column not in gdf.columns:
                 return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
             
-            # Convert to Web Mercator for contextily compatibility
-            gdf_plot = gdf.to_crs(epsg=3857)
-            
-            gdf_plot.plot(
+            gdf.plot(
                 column=column,
                 ax=self.current_ax,
                 legend=True,
                 cmap=params.cmap,
                 categorical=True,
                 edgecolor='black',
-                linewidth=0.5,
-                alpha=0.7
+                linewidth=0.5
             )
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
@@ -506,10 +456,7 @@ class VisualizationTool:
                                   layer_name: str) -> str:
         """Visualize only geometries using plot"""
         try:
-            # Convert to Web Mercator for contextily compatibility
-            gdf_plot = gdf.to_crs(epsg=3857)
-            
-            gdf_plot.plot(
+            gdf.plot(
                 ax=self.current_ax,
                 edgecolor='black',
                 facecolor='lightblue',
