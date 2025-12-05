@@ -1,4 +1,4 @@
-This app is developed using the Spiral Model and utilizes Streamlit and GeoPandas to visualize user-provided GeoJSON files using the geopandas.GeoDataFrame.explore method. 
+This app is developed using Spiral model–driven initial development and Scrum-driven iterative refinement, and utilizes Streamlit and GeoPandas to visualize user-provided GeoJSON files.
 
 
 ![Alt text](Example.jpeg)
