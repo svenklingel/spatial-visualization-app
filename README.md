@@ -27,15 +27,33 @@ This app is developed using Spiral model–driven initial development and Scrum-
 - Visualize point density 
 
 # How to use 
+- Clone this repo
+    ```
+    git clone https://github.com/svenklingel/spatial-visualization-app
+    ```
+- Create a virtual environment
+    ```
+    python -m venv venv
+    ```
+- Activate the virtual environment
+    - On Windows:
+        ```
+        venv\Scripts\activate
+        ```
+    - On macOS/Linux:
+        ```
+        source venv/bin/activate
+        ```
 - Install dependencies:
     ```
     pip install -r requirements.txt
     ```
-- Ensure your data is a GeoJSON file
 - Run the app using the following command:
     ```
     streamlit run visualization_app.py
     ```
+- Open your browser and navigate to the local URL shown in the terminal to interact with the app.
+
 
 # Possible features for future iterations
 - Support for more file formats
