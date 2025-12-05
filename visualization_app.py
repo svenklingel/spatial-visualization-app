@@ -6,6 +6,8 @@ import geopandas as gpd
 import streamlit as st
 import streamlit.components.v1 as components
 import importlib
+from datetime import datetime
+import matplotlib.pyplot as plt
 
 # Used for creating visualizations
 from visualization_tool import (
@@ -81,6 +83,7 @@ def main():
             ## Features
             - Visualize spatial data
             - Export interactive maps as HTML
+            - Export layers as PNG images
             
             ## Supported Formats
             - GeoJSON
@@ -107,7 +110,6 @@ def main():
         st.divider()
         
         # File upload: GeoJSON files
-        # TODO: Support for other data formats
         st.subheader("Upload Data")
         uploaded_files = st.file_uploader(
             "Upload GeoJSON files",
@@ -130,28 +132,97 @@ def main():
         
         # Export and clear buttons
         st.subheader("Actions")
+
+        # Selectbox to select one layer for an image of a layer as PNG
+        selected_layer = None
+        if st.session_state["layers"]:
+            with st.expander("Current Layers", expanded=False):
+                selected_layer = st.selectbox("Select a layer", options=list(st.session_state["layers"].keys()))
+                st.write(f"Selected layer: {selected_layer}")
+
         col1, col2 = st.columns(2)
         
         # Map export and clear logic
         with col1:
-            # Export interactive map as HTML 
+            # Radio button to choose between exporting map as HTML or layer as PNG
+            export_format = st.radio("Export format", options=["Map as HTML", "Layer as PNG"])
+
+            # Export interactive map as HTML or layer as PNG
             if st.button("Export", width="stretch"):
-                timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
-                output_path = "./Output/Maps"
-                os.makedirs(output_path, exist_ok=True)
-                
-                cleaned_html = clear_map_html(st.session_state["map"].get_root().render())
-                output_file = f"{output_path}/map_{timestamp}.html"
-                
-                with open(output_file, "w", encoding="utf-8") as f:
-                    f.write(cleaned_html)
-                st.success(f"Map exported!")
+                if export_format == "Layer as PNG":
+                    if not selected_layer:
+                        st.error("No layer selected for export!")
+                    else:
+                        try:
+                            # Extract layer information from session state
+                            layer_info = st.session_state["layers"][selected_layer]
+                            vis_type = layer_info["visualization_type"]
+                            gdf_name = layer_info["geodataframe"]
+                            gdf = st.session_state["geodataframes"][gdf_name]
+                            
+                            # Get visualization parameters from layer info
+                            numeric_params = layer_info.get("numeric_params")
+                            categorical_params = layer_info.get("categorical_params")
+                            use_heatmap = layer_info.get("heatmap", False)
+                            use_geometries = layer_info.get("geometries", False)
+                            
+                            # Create output directory
+                            timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
+                            output_path = "./Output/Images"
+                            os.makedirs(output_path, exist_ok=True)
+                            output_file = f"{output_path}/{selected_layer}_{timestamp}.png"
+                            
+                            # Create visualization tool for plot method
+                            viz_tool = VisualizationTool(
+                                folium_map=st.session_state["map"],
+                                gdf_environment=st.session_state["geodataframes"]
+                            )
+                            
+                            # Use plot method to create visualization
+                            result = viz_tool.visualize(
+                                gdf_name=gdf_name,
+                                layer_name=selected_layer,
+                                method="plot",
+                                numeric=numeric_params,
+                                categorical=categorical_params,
+                                heatmap=use_heatmap,
+                                geometries=use_geometries,
+                                figsize=(12, 10)
+                            )
+                            
+                            if result is True:
+                                # Save the plot
+                                viz_tool.save_plot(output_file, dpi=300)
+                                st.success(f"PNG exported to {output_file}")
+                                
+                                # Display preview
+                                with open(output_file, "rb") as f:
+                                    st.image(f.read(), use_container_width=True)
+                            else:
+                                st.error(f"Error creating visualization: {result}")
+
+                        except Exception as e:
+                            st.error(f"Error exporting PNG: {e}")
+
+                else:
+                    # Export as HTML
+                    timestamp = datetime.now().strftime("%d%m%Y_%H%M%S")
+                    output_path = "./Output/Maps"
+                    os.makedirs(output_path, exist_ok=True)
+                    
+                    cleaned_html = clear_map_html(st.session_state["map"].get_root().render())
+                    output_file = f"{output_path}/map_{timestamp}.html"
+                    
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        f.write(cleaned_html)
+                    st.success(f"Map exported as HTML to {output_file}")
         
         with col2:
             # Clear map window and remove GeoDataFrames from session state
             if st.button("Clear", width="stretch"):
                 st.session_state["map"] = create_map()
                 st.session_state["geodataframes"] = {}
+                st.session_state["layers"] = {}
                 st.success("Map cleared!")
                 st.rerun()
 
@@ -200,7 +271,7 @@ def main():
                 cols_without_geometry = [c for c in gdf.columns if c != "geometry"]
 
                 # Show DataFrame without geometry column
-                st.dataframe(gdf[cols_without_geometry], width="stretch")
+                st.dataframe(gdf[cols_without_geometry], use_container_width=True)
                             
             st.divider()
             
@@ -353,27 +424,48 @@ def main():
             st.divider()
             
             # Visualization button executes visualize method of the VisualizationTool object
-            if st.button("Visualize", type="primary", width="stretch"):
+            if st.button("Visualize", type="primary", use_container_width=True):
                 with st.spinner("Creating visualization..."):
                     viz_tool = VisualizationTool(
                         folium_map=st.session_state["map"],
                         gdf_environment=st.session_state["geodataframes"]
                     )
                     
+                    # Use explore method for interactive map
                     result = viz_tool.visualize(
                         gdf_name=selected_gdf,
                         layer_name=layer_name,
+                        method="explore",
                         numeric=numeric_params,
                         categorical=categorical_params,
                         heatmap=use_heatmap,
                         geometries=use_geometries
                     )
-                    if result:
-                        # Add layer name to state
-                        st.session_state["layers"][layer_name] = layer_name
-                        st.success(result) 
+
+                    # Determine visualization type
+                    if numeric_params:
+                        vis_type = "numeric"
+                    elif categorical_params:
+                        vis_type = "categorical"
+                    elif use_heatmap:
+                        vis_type = "heatmap"
                     else:
-                        st.error(result) # Display error message
+                        vis_type = "geometries"
+
+                    if result is True:
+                        # Store layer information including all visualization parameters
+                        st.session_state["layers"][layer_name] = {
+                            "geodataframe": selected_gdf,
+                            "visualization_type": vis_type,
+                            "numeric_params": numeric_params,
+                            "categorical_params": categorical_params,
+                            "heatmap": use_heatmap,
+                            "geometries": use_geometries
+                        }
+                        
+                        st.success(f"Layer '{layer_name}' created successfully!") 
+                    else:
+                        st.error(result)  # Display error message
                     
                     st.rerun()
     
