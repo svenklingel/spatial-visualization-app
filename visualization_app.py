@@ -476,11 +476,19 @@ def main():
                         "Legend Caption",
                         value=f"{col} Categories"
                     )
-                    
+
+                    categories = st.multiselect(
+                        "Categories",
+                        options=unique_vals,
+                        default=unique_vals,
+                        help="Select categories to visualize"
+                    )
+
                     categorical_params = Categorical(
                         gdf_column=col,
                         cmap=cmap,
-                        legend_caption=caption
+                        legend_caption=caption,
+                        categories=categories
                     )
             
              # Visualize point density

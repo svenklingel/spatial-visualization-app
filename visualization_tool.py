@@ -4,7 +4,7 @@ import re
 import geopandas as gpd
 import folium as f
 import matplotlib.pyplot as plt
-from typing import Dict, Optional, Literal
+from typing import Dict, List, Optional, Literal
 from folium.plugins import HeatMap, Draw, Geocoder, MousePosition, Fullscreen, LocateControl, MeasureControl
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -144,6 +144,8 @@ class Categorical(BaseModel):
     gdf_column: str = Field(description="Name of the column to visualize")
     cmap: str = Field(description="Matplotlib Colormap Name")
     legend_caption: str = Field(description="Legend title")
+    # Liste von strings
+    categories: Optional[List[str]] = Field(default=None, description="List of categories")
 
 # Used as wrapper for GeoDataFrame.explore() and plot()
 class VisualizationTool:
@@ -336,6 +338,10 @@ class VisualizationTool:
             if column not in gdf.columns:
                 return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
             
+            # If categories are provided, only plot those
+            if params.categories:
+                gdf = gdf[gdf[column].isin(params.categories)]
+                
             gdf.explore(
                 popup=True,
                 tooltip=column,
@@ -345,6 +351,7 @@ class VisualizationTool:
                 legend=True,
                 legend_kwds={"caption": params.legend_caption, "colorbar": False},
                 categorical=True,
+                categories=params.categories,
                 m=self.map,
                 style_kwds={"fillOpacity": "0.85", "weight": "1.5"}
             )
@@ -366,12 +373,17 @@ class VisualizationTool:
             if column not in gdf.columns:
                 return f"Column '{column}' not found in {gdf_name}. Available columns: {list(gdf.columns)}"
             
+            # If categories are provided, only plot those
+            if params.categories:
+                gdf = gdf[gdf[column].isin(params.categories)]
+            
             gdf.plot(
                 column=column,
                 ax=self.current_ax,
                 legend=True,
                 cmap=params.cmap,
                 categorical=True,
+                categories=params.categories,
                 edgecolor='black',
                 linewidth=0.5
             )
