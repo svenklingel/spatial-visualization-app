@@ -44,6 +44,7 @@ def load_data(uploaded_file):
 # Streamlit app logic
 def main():
 
+
     st.set_page_config(
         page_title="Visualization app",
         page_icon="🗺️",
@@ -76,6 +77,58 @@ def main():
     # Sidebar contains app info, data upload, map export and clear
     with st.sidebar:
         st.title("Visualization app")
+
+        # Theme changing: https://discuss.streamlit.io/t/changing-the-streamlit-theme-with-a-toggle-button-solution/56842/2
+        ms = st.session_state
+        if "themes" not in ms: 
+            ms.themes = {
+            "current_theme": "light",
+            "refreshed": True,
+
+            "light": {
+                "theme.base": "light",
+                "theme.backgroundColor": "white",
+                "theme.primaryColor": "#5591f5",
+                "theme.secondaryBackgroundColor": "#e6e9ef",
+                "theme.textColor": "#0a1464",
+                "button_face": "🌞"
+            },
+
+            "dark": {
+                "theme.base": "dark",
+                "theme.backgroundColor": "#0d1117",
+                "theme.primaryColor": "#c98bdb",
+                "theme.secondaryBackgroundColor": "#30363d",
+                "theme.textColor": "white",
+                "button_face": "🌜"
+            }
+        }
+
+
+        def ChangeTheme():
+            previous_theme = ms.themes["current_theme"]
+            tdict = ms.themes["light"] if ms.themes["current_theme"] == "light" else ms.themes["dark"]
+            for vkey, vval in tdict.items(): 
+                if vkey.startswith("theme"): 
+                    st._config.set_option(vkey, vval)
+
+            ms.themes["refreshed"] = False
+            if previous_theme == "dark":
+                ms.themes["current_theme"] = "light"
+            elif previous_theme == "light":
+                ms.themes["current_theme"] = "dark"
+
+        btn_face = (
+            ms.themes["light"]["button_face"] 
+            if ms.themes["current_theme"] == "light" 
+            else ms.themes["dark"]["button_face"]
+        )
+        st.button(btn_face, on_click=ChangeTheme)
+
+        if ms.themes["refreshed"] == False:
+            ms.themes["refreshed"] = True
+            st.rerun()
+
         with st.expander("Info", expanded=False):
             st.markdown("""
             This app uses Streamlit and GeoPandas to visualize user-provided GeoJSON files.
@@ -197,7 +250,7 @@ def main():
                                 
                                 # Display preview
                                 with open(output_file, "rb") as f:
-                                    st.image(f.read(), use_container_width=True)
+                                    st.image(f.read(), width='content')
                             else:
                                 st.error(f"Error creating visualization: {result}")
 
@@ -271,7 +324,7 @@ def main():
                 cols_without_geometry = [c for c in gdf.columns if c != "geometry"]
 
                 # Show DataFrame without geometry column
-                st.dataframe(gdf[cols_without_geometry], use_container_width=True)
+                st.dataframe(gdf[cols_without_geometry], width='content')
                             
             st.divider()
             
