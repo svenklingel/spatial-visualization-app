@@ -380,21 +380,28 @@ def main():
                     col_a, col_b = st.columns(2)
                     with col_a:
                         # Select the classification scheme to use
-                        scheme = st.selectbox(
-                            "Classification scheme",
-                            [s.name for s in Scheme],
-                            index=10,  # Default: Quantiles
-                            help="Method for classifying numeric data"
-                        )
+                        # Option: continuous color scale (no classification)
+                        continuous = st.checkbox("Continuous color scale (no classification)", value=False,
+                                                 help="If checked, no classification (scheme/k) is applied and vmin/vmax control the color mapping.")
+                        scheme = None
+                        if not continuous:
+                            scheme = st.selectbox(
+                                "Classification scheme",
+                                [s.name for s in Scheme],
+                                index=10,  # Default: Quantiles
+                                help="Method for classifying numeric data"
+                            )
                     with col_b:
                         # Define the number of classes
-                        k = st.number_input(
-                            "Number of classes",
-                            min_value=2,
-                            max_value=10,
-                            value=5,
-                            help="How many classes to divide the data into"
-                        )
+                        k = None
+                        if not continuous:
+                            k = st.number_input(
+                                "Number of classes",
+                                min_value=2,
+                                max_value=10,
+                                value=5,
+                                help="How many classes to divide the data into"
+                            )
                     
                     # Optional matplotlib colormap
                     cmap = st.text_input(
@@ -402,7 +409,27 @@ def main():
                         value="YlOrRd",
                         help="Matplotlib colormap name (e.g., 'Blues', 'Reds', 'viridis')"
                     )
-                    
+
+                    # if no classification: Continuous colorbar with optional minimum/maximum value for matplotlib colormap
+                    vmin = None
+                    vmax = None
+                    if continuous:
+                        use_custom_range = st.checkbox("Custom color range (vmin/vmax)", value=False)
+                        
+                        if use_custom_range:
+                            vmin = st.number_input(
+                                "Minimum value (vmin)",
+                                value=float(gdf[col].min()) if gdf[col].count() else 0.0,
+                                format="%.6f",
+                                help="Minimum value for color mapping"
+                            )
+                            vmax = st.number_input(
+                                "Maximum value (vmax)",
+                                value=float(gdf[col].max()) if gdf[col].count() else 1.0,
+                                format="%.6f",
+                                help="Maximum value for color mapping"
+                            )
+ 
                     # Legend caption
                     caption = st.text_input(
                         "Legend Caption",
@@ -413,8 +440,10 @@ def main():
                     numeric_params = Numeric(
                         gdf_column=col,
                         k=k,
-                        scheme=Scheme[scheme],
+                        scheme=Scheme[scheme] if scheme else None,
                         cmap=cmap,
+                        vmax=vmax,
+                        vmin=vmin,
                         legend_caption=caption
                     )
             

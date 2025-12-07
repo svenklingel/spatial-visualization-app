@@ -133,8 +133,10 @@ class Numeric(BaseModel):
     """Parameters for numeric visualizations"""
     gdf_column: str = Field(description="Name of the column to visualize")
     k: Optional[int] = Field(default=None, description="Number of classes")
-    scheme: Scheme = Field(description="Classification scheme")
+    scheme: Optional[Scheme] = Field(default=None, description="Classification scheme (None = continuous)")
     cmap: str = Field(description="Matplotlib Colormap Name")
+    vmin: Optional[float] = Field(default=None, description="Minimum value for color scale")
+    vmax: Optional[float] = Field(default=None, description="Maximum value for color scale")
     legend_caption: str = Field(description="Legend title")
 
 class Categorical(BaseModel):
@@ -249,7 +251,7 @@ class VisualizationTool:
             return self._visualize_geometries_plot(gdf, gdf_name, layer_name)
     
     def _visualize_numeric_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, 
-                          layer_name: str, params: Numeric) -> str:
+                           layer_name: str, params: Numeric) -> str:
         """Visualize data of a numeric column using explore"""
         try:
             column = params.gdf_column
@@ -260,19 +262,26 @@ class VisualizationTool:
             if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
                 return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
             
-            gdf.explore(
+            explore_kwargs = dict(
                 popup=True,
                 tooltip=column,
                 column=column,
-                k=params.k,
-                scheme=params.scheme.name,
                 cmap=params.cmap,
+                vmin=params.vmin,
+                vmax=params.vmax,
                 name=layer_name,
                 legend=True,
                 m=self.map,
-                legend_kwds={"caption": params.legend_caption, "colorbar": False},
+                # Show colorbar for continuous scale (no scheme); hide for classified schemes
+                legend_kwds={"caption": params.legend_caption, "colorbar": (True if params.scheme is None else False)},
                 style_kwds={"fillOpacity": "0.85", "weight": "1.5"}
             )
+            if params.k:
+                explore_kwargs["k"] = params.k
+            if params.scheme:
+                explore_kwargs["scheme"] = params.scheme.name
+
+            gdf.explore(**explore_kwargs)
             
             add_layer_control(self.map)
             fit_map(gdf, self.map)
@@ -293,16 +302,22 @@ class VisualizationTool:
             if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
                 return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
             
-            gdf.plot(
+            plot_kwargs = dict(
                 column=column,
                 ax=self.current_ax,
                 legend=True,
-                k=params.k,
-                scheme=params.scheme.name,
                 cmap=params.cmap,
+                vmin=params.vmin,
+                vmax=params.vmax,
                 edgecolor='black',
                 linewidth=0.5
             )
+            if params.k:
+                plot_kwargs["k"] = params.k
+            if params.scheme:
+                plot_kwargs["scheme"] = params.scheme.name
+
+            gdf.plot(**plot_kwargs)
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
             self.current_ax.set_axis_off()
