@@ -5,7 +5,7 @@ This app is developed using Spiral model–driven initial development and Scrum-
 
 ## Features
 - Visualize spatial data 
-- Export interactive maps as HTML
+- Export interactive maps as HTML files or as PNG images of individual layers
 
 ## Supported Formats
 - GeoJSON 
@@ -15,13 +15,14 @@ This app is developed using Spiral model–driven initial development and Scrum-
 - Display points, lines, or polygons
 
 2. Numeric data 
-- Classifies numeric column values
-- Selectable classification scheme (supported are all schemes provided by mapclassify)
-- Adjustable number of classes 
+- Choropleth maps with either discrete (classified) or continuous color scales
+- For classified data: selectable classification scheme (all mapclassify schemes supported) and adjustable number of classes
+- For continuous data: user-defined minimum and maximum values for the colorbar
 
 3. . Categorical data  
-- Shows distinct values from a column 
-- Choosable Matplotlib colormap
+- Displays distinct values from a selected column
+- User-selectable Matplotlib colormap
+- Optional filtering to display only specific categories
 
 4. Heatmap  
 - Visualize point density 
@@ -55,10 +56,3 @@ This app is developed using Spiral model–driven initial development and Scrum-
     ```
 - Open your browser and navigate to the local URL shown in the terminal to interact with the app.
 
-
-# Possible features for future iterations
-- Support for more file formats
-- Export maps as images
-- Support for user-defined categories
-- Ability to define the minimum and maximum values of the Matplotlib colormap used for numeric visualizations (supported via the `vmin` and `vmax` parameters of `explore()`)
-- Support for additional visualization types, including spatio-temporal visualizations
