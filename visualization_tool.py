@@ -314,12 +314,20 @@ class VisualizationTool:
                 edgecolor='black',
                 linewidth=0.5
             )
+
+            # Only relevant for classified choropleth maps: Number of classes & scheme
             if params.k:
                 plot_kwargs["k"] = params.k
+
             if params.scheme:
                 plot_kwargs["scheme"] = params.scheme.name
 
             gdf.plot(**plot_kwargs)
+
+            # Add legend caption
+            legend = self.current_ax.get_legend()
+            if legend and params.legend_caption:
+                legend.set_title(params.legend_caption)
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
             self.current_ax.set_axis_off()
@@ -387,6 +395,11 @@ class VisualizationTool:
                 edgecolor='black',
                 linewidth=0.5
             )
+
+            # Add legend caption
+            legend = self.current_ax.get_legend()
+            if legend and params.legend_caption:
+                legend.set_title(params.legend_caption)
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
             self.current_ax.set_axis_off()
