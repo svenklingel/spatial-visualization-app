@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, List, Optional, Literal
 from folium.plugins import HeatMap, Draw, Geocoder, MousePosition, Fullscreen, LocateControl, MeasureControl
 from enum import Enum
+import contextily as ctx
 from pydantic import BaseModel, Field
 from pyproj import Transformer
 import PIL
@@ -304,6 +305,9 @@ class VisualizationTool:
             if not gpd.pd.api.types.is_numeric_dtype(gdf[column]):
                 return f"Column '{column}' is not numeric. Type: {gdf[column].dtype}"
             
+            # Reproject to Web Mercator for contextily basemaps
+            gdf = gdf.to_crs(epsg=3857)  # Web Mercator for contextily
+
             plot_kwargs = dict(
                 column=column,
                 ax=self.current_ax,
@@ -323,6 +327,9 @@ class VisualizationTool:
                 plot_kwargs["scheme"] = params.scheme.name
 
             gdf.plot(**plot_kwargs)
+
+            # Add basemap if contextily is available
+            ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
 
             # Add legend caption
             legend = self.current_ax.get_legend()
@@ -385,6 +392,9 @@ class VisualizationTool:
             if params.categories:
                 gdf = gdf[gdf[column].isin(params.categories)]
             
+            # Reproject to Web Mercator for contextily basemaps
+            gdf = gdf.to_crs(epsg=3857)  # Web Mercator for contextily
+
             gdf.plot(
                 column=column,
                 ax=self.current_ax,
@@ -395,6 +405,8 @@ class VisualizationTool:
                 edgecolor='black',
                 linewidth=0.5
             )
+
+            ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
 
             # Add legend caption
             legend = self.current_ax.get_legend()
