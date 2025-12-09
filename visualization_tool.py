@@ -327,7 +327,7 @@ class VisualizationTool:
                 plot_kwargs["scheme"] = params.scheme.name
 
             gdf.plot(**plot_kwargs)
-
+            
             # Add basemap if contextily is available
             ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
 
@@ -508,6 +508,10 @@ class VisualizationTool:
                                   layer_name: str) -> str:
         """Visualize only geometries using plot"""
         try:
+
+            # Reproject to Web Mercator for contextily basemaps
+            gdf = gdf.to_crs(epsg=3857)  # Web Mercator
+
             gdf.plot(
                 ax=self.current_ax,
                 edgecolor='black',
@@ -515,6 +519,9 @@ class VisualizationTool:
                 linewidth=0.5,
                 alpha=0.7
             )
+
+            # Add basemap
+            ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
             
             self.current_ax.set_title(layer_name, fontsize=14, fontweight='bold')
             self.current_ax.set_axis_off()
