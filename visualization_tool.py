@@ -140,6 +140,12 @@ class Numeric(BaseModel):
     vmax: Optional[float] = Field(default=None, description="Maximum value for color scale")
     legend_caption: str = Field(description="Legend title")
 
+    # NEW → Point size for point geometries
+    point_size: Optional[int] = Field(default=5, description="Point size for point geometries")
+
+    # NEW → Stroke/line width
+    stroke_size: Optional[float] = Field(default=1.5, description="Line width for polygons/lines")
+
 class Categorical(BaseModel):
     """Parameters for categorical visualizations"""
     gdf_column: str = Field(description="Name of the column to visualize")
@@ -147,6 +153,12 @@ class Categorical(BaseModel):
     legend_caption: str = Field(description="Legend title")
     # Liste von strings
     categories: Optional[List[str]] = Field(default=None, description="List of categories")
+
+    # NEW → Point size for point geometries
+    point_size: Optional[int] = Field(default=5, description="Point size for point geometries")
+
+    # NEW → Stroke/line width
+    stroke_size: Optional[float] = Field(default=1.5, description="Line width for polygons/lines")
 
 # Used as wrapper for GeoDataFrame.explore() and plot()
 class VisualizationTool:
@@ -308,6 +320,9 @@ class VisualizationTool:
             # Reproject to Web Mercator for contextily basemaps
             gdf = gdf.to_crs(epsg=3857)  # Web Mercator for contextily
 
+            # NEW — detect geometry type
+            is_point = gdf.geometry.geom_type.eq("Point").all()
+
             plot_kwargs = dict(
                 column=column,
                 ax=self.current_ax,
@@ -315,9 +330,14 @@ class VisualizationTool:
                 cmap=params.cmap,
                 vmin=params.vmin,
                 vmax=params.vmax,
-                edgecolor='black',
-                linewidth=0.5
             )
+
+            # NEW — apply point size OR stroke size
+            if is_point:
+                plot_kwargs["markersize"] = params.point_size
+            else:
+                plot_kwargs["edgecolor"] = "black"
+                plot_kwargs["linewidth"] = params.stroke_size
 
             # Only relevant for classified choropleth maps: Number of classes & scheme
             if params.k:
@@ -395,16 +415,26 @@ class VisualizationTool:
             # Reproject to Web Mercator for contextily basemaps
             gdf = gdf.to_crs(epsg=3857)  # Web Mercator for contextily
 
-            gdf.plot(
+            # NEW — detect geometry type
+            is_point = gdf.geometry.geom_type.eq("Point").all()
+
+            plot_kwargs = dict(
                 column=column,
                 ax=self.current_ax,
                 legend=True,
                 cmap=params.cmap,
                 categorical=True,
-                categories=params.categories,
-                edgecolor='black',
-                linewidth=0.5
+                categories=params.categories
             )
+
+            # NEW — apply point size OR stroke size
+            if is_point:
+                plot_kwargs["markersize"] = params.point_size
+            else:
+                plot_kwargs["edgecolor"] = "black"
+                plot_kwargs["linewidth"] = params.stroke_size
+            
+            gdf.plot(**plot_kwargs)
 
             ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
 

@@ -1,4 +1,4 @@
-# Streamlit app to inspect and visualize data of GeoDataFrames created from user-uploaded GeoJSON files
+# Streamlit app to inspect and visualize data of GeoDataFrames created from user-uploaded GeoJSON or zipped Shapefiles.
 
 import os
 from datetime import datetime
@@ -21,25 +21,56 @@ from visualization_tool import (
 
 # Data loading
 def load_data(uploaded_file):
-    """Loads a GeoJSON file into a GeoDataFrame and stores it in session state to keep it persistent between reruns"""
+    """Loads GeoJSON or Shapefile ZIP into GeoDataFrame with spatial index"""
     try:
         ext = os.path.splitext(uploaded_file.name)[1][1:].lower()
+
+        # ---- GeoJSON ----
         if ext == "geojson":
             gdf = gpd.read_file(uploaded_file, encoding="utf-8")
             gdf = gdf.to_crs(epsg=25832)
-            
+
+            # Build spatial index
+            try:
+                _ = gdf.sindex
+            except Exception:
+                st.warning("Spatial index could not be created.")
+
             env = st.session_state["geodataframes"]
-            gdfs_num = len([obj for obj in env.values() if isinstance(obj, gpd.GeoDataFrame)])
-            gdf_name = f"gdf_{gdfs_num}"
+            gdf_name = f"gdf_{len(env)}"
             env[gdf_name] = gdf
-            
             return gdf_name
-        else:
-            st.error(f"Unsupported file format: {ext}")
-            return None
+
+        # ---- Shapefile ZIP ----
+        if ext == "zip":
+            import tempfile, zipfile
+            tmpdir = tempfile.mkdtemp()
+
+            with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+                zip_ref.extractall(tmpdir)
+
+            gdf = gpd.read_file(tmpdir)
+            gdf = gdf.to_crs(epsg=25832)
+
+            # Build spatial index
+            try:
+                _ = gdf.sindex
+            except Exception:
+                st.warning("Spatial index could not be created.")
+
+            env = st.session_state["geodataframes"]
+            gdf_name = f"gdf_{len(env)}"
+            env[gdf_name] = gdf
+            return gdf_name
+
+        # Unsupported
+        st.error(f"Unsupported file format: {ext}")
+        return None
+
     except Exception as e:
         st.error(f"Error loading file: {e}")
         return None
+
 
 # Streamlit app logic
 def main():
@@ -131,7 +162,7 @@ def main():
 
         with st.expander("Info", expanded=False):
             st.markdown("""
-            This app uses Streamlit and GeoPandas to visualize user-provided GeoJSON files.
+            This app uses Streamlit and GeoPandas to visualize user-provided GeoJSON files or Shapefiles (uploaded as ZIP file)
                         
             ## Features
             - Visualize spatial data
@@ -140,6 +171,7 @@ def main():
             
             ## Supported Formats
             - GeoJSON
+            - Zipped Shapefile
                         
             ## Visualization Types
 
@@ -147,10 +179,9 @@ def main():
             - Display points, lines, or polygons
 
             2. Numeric data 
-            - Classifies numeric column values 
-            - Selectable classification scheme
-            - Adjustable number of classes
-            - Choosable matplotlib colormap
+            - Choropleth maps for visualizing a single numeric attribute, with a selectable Matplotlib colormap and support for both discrete (classified) and continuous color scales
+            - Continuous mode: Colorbar display with optional minimum and maximum value settings (vmin / vmax)
+            - Classification mode: Configurable classification scheme and adjustable number of classes
 
             3️. Categorical data  
             - Shows distinct categories from a column
@@ -165,11 +196,11 @@ def main():
         # File upload: GeoJSON files
         st.subheader("Upload Data")
         uploaded_files = st.file_uploader(
-            "Upload GeoJSON files",
-            type=["geojson"],
+            "Upload GeoJSON or Shapefile ZIP",
+            type=["geojson", "zip"],
             accept_multiple_files=True,
             key=st.session_state["file_uploader_key"],
-            help="Upload one or more GeoJSON files."
+            help="Upload one or more GeoJSON or zipped Shapefiles (.zip)."
         )
         
         if uploaded_files:
@@ -287,7 +318,7 @@ def main():
         st.header("Visualization settings")
         
         if not st.session_state["geodataframes"]:
-            st.info("Upload GeoJSON files to get started.")
+            st.info("Upload a GeoJSON or zipped Shapefile file to get started.")
             st.stop()
 
         # Select GeoDataFrame
@@ -435,6 +466,24 @@ def main():
                         "Legend Caption",
                         value=f"{col} classification"
                     )
+
+                    # NEW — Point size
+                    point_size = st.number_input(
+                        "Point size",
+                        min_value=1,
+                        max_value=50,
+                        value=5,
+                        help="Size of point markers"
+                    )
+
+                    # NEW — Stroke width (for polygons/lines)
+                    stroke_size = st.number_input(
+                        "Stroke width",
+                        min_value=0.1,
+                        max_value=10.0,
+                        value=1.5,
+                        help="Width of line borders"
+                    )
                     
                     # Create numeric parameters dataclass
                     numeric_params = Numeric(
@@ -444,7 +493,9 @@ def main():
                         cmap=cmap,
                         vmax=vmax,
                         vmin=vmin,
-                        legend_caption=caption
+                        legend_caption=caption,
+                        point_size=point_size,         # NEW
+                        stroke_size=stroke_size        # NEW
                     )
             
              # Visualize categorical data
@@ -477,6 +528,24 @@ def main():
                         value=f"{col} Categories"
                     )
 
+                    # NEW — Point size
+                    point_size = st.number_input(
+                        "Point size",
+                        min_value=1,
+                        max_value=50,
+                        value=5,
+                        help="Size of point markers"
+                    )
+
+                    # NEW — Stroke width
+                    stroke_size = st.number_input(
+                        "Stroke width",
+                        min_value=0.1,
+                        max_value=10.0,
+                        value=1.5,
+                        help="Width of line borders"
+                    )
+
                     categories = st.multiselect(
                         "Categories",
                         options=unique_vals,
@@ -488,7 +557,9 @@ def main():
                         gdf_column=col,
                         cmap=cmap,
                         legend_caption=caption,
-                        categories=categories
+                        categories=categories,
+                        point_size=point_size,   # NEW
+                        stroke_size=stroke_size  # NEW
                     )
             
              # Visualize point density
