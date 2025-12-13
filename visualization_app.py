@@ -466,7 +466,7 @@ def main():
                         "Legend Caption",
                         value=f"{col} classification"
                     )
-
+                    
                     # NEW — Point size
                     point_size = st.number_input(
                         "Point size",
@@ -476,14 +476,17 @@ def main():
                         help="Size of point markers"
                     )
 
-                    # NEW — Stroke width (for polygons/lines)
-                    stroke_size = st.number_input(
-                        "Stroke width",
-                        min_value=0.1,
-                        max_value=10.0,
-                        value=1.5,
-                        help="Width of line borders"
-                    )
+                    # Stroke width only for line geometries
+                    line_present = gdf.geometry.type.isin(["LineString", "MultiLineString"]).any()
+                    stroke_size = None
+                    if line_present:
+                        stroke_size = st.number_input(
+                            "Stroke width",
+                            min_value=0.1,
+                            max_value=10.0,
+                            value=1.5,
+                            help="Width of line borders (only for line geometries)"
+                        )
                     
                     # Create numeric parameters dataclass
                     numeric_params = Numeric(
@@ -495,7 +498,7 @@ def main():
                         vmin=vmin,
                         legend_caption=caption,
                         point_size=point_size,         # NEW
-                        stroke_size=stroke_size        # NEW
+                        stroke_size=stroke_size        # NEW (None if not applicable)
                     )
             
              # Visualize categorical data
@@ -537,14 +540,17 @@ def main():
                         help="Size of point markers"
                     )
 
-                    # NEW — Stroke width
-                    stroke_size = st.number_input(
-                        "Stroke width",
-                        min_value=0.1,
-                        max_value=10.0,
-                        value=1.5,
-                        help="Width of line borders"
-                    )
+                    # Stroke width only for line geometries
+                    line_present = gdf.geometry.type.isin(["LineString", "MultiLineString"]).any()
+                    stroke_size = None
+                    if line_present:
+                        stroke_size = st.number_input(
+                            "Stroke width",
+                            min_value=0.1,
+                            max_value=10.0,
+                            value=1.5,
+                            help="Width of line borders (only for line geometries)"
+                        )
 
                     categories = st.multiselect(
                         "Categories",
@@ -559,7 +565,7 @@ def main():
                         legend_caption=caption,
                         categories=categories,
                         point_size=point_size,   # NEW
-                        stroke_size=stroke_size  # NEW
+                        stroke_size=stroke_size  # NEW (None if not applicable)
                     )
             
              # Visualize point density
@@ -580,6 +586,27 @@ def main():
             else: 
                 st.subheader("Geometries")
                 st.info("Basic geometry visualization without classification")
+                # NEW — point size and stroke width for geometries-only
+                geom_point_size = st.number_input(
+                    "Point size (geometries)",
+                    min_value=1,
+                    max_value=50,
+                    value=5,
+                    help="Size of point markers for geometries-only visualization"
+                )
+
+                # Show stroke width only if GeoDataFrame contains line geometries
+                line_present = gdf.geometry.type.isin(["LineString", "MultiLineString"]).any()
+                geom_stroke_size = None
+                if line_present:
+                    geom_stroke_size = st.number_input(
+                        "Stroke width (geometries)",
+                        min_value=0.1,
+                        max_value=10.0,
+                        value=1.5,
+                        help="Width of line borders for geometries-only visualization (only for lines)"
+                    )
+
                 use_geometries = True
             
             st.divider()

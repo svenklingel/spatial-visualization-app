@@ -190,7 +190,9 @@ class VisualizationTool:
         categorical: Optional[Categorical] = None,
         heatmap: bool = False,
         geometries: bool = False,
-        figsize: tuple = (12, 8)
+        figsize: tuple = (12, 8),
+        geom_point_size: Optional[int] = None,
+        geom_stroke_size: Optional[float] = None
     ) -> str:
         """
         Visualizes a GeoDataFrame on the map or as static plot.
@@ -204,6 +206,8 @@ class VisualizationTool:
             heatmap: Whether to create a heatmap
             geometries: Whether to visualize only geometries
             figsize: Figure size for plot method (width, height)
+            geom_point_size: point size to use for geometries-only visualizations
+            geom_stroke_size: stroke/line width to use for geometries-only visualizations
 
         Returns:
             True if successful, error message otherwise
@@ -225,14 +229,21 @@ class VisualizationTool:
         
         # Route to appropriate method
         if method == "explore":
-            return self._visualize_explore(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries)
+            return self._visualize_explore(
+                gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries,
+                geom_point_size=geom_point_size, geom_stroke_size=geom_stroke_size
+            )
         elif method == "plot":
-            return self._visualize_plot(gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries, figsize)
+            return self._visualize_plot(
+                gdf, gdf_name, layer_name, numeric, categorical, heatmap, geometries, figsize,
+                geom_point_size=geom_point_size, geom_stroke_size=geom_stroke_size
+            )
         else:
             return f"Invalid method '{method}'. Use 'explore' or 'plot'."
     
     def _visualize_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, layer_name: str,
-                          numeric, categorical, heatmap, geometries):
+                          numeric, categorical, heatmap, geometries, geom_point_size: Optional[int] = None,
+                          geom_stroke_size: Optional[float] = None):
         """Handle visualization using explore method"""
         # Remove current LayerControl
         for item in list(self.map._children):
@@ -247,10 +258,13 @@ class VisualizationTool:
         elif heatmap:
             return self._visualize_heatmap_explore(gdf, gdf_name, layer_name)
         elif geometries:
-            return self._visualize_geometries_explore(gdf, gdf_name, layer_name)
+            return self._visualize_geometries_explore(gdf, gdf_name, layer_name,
+                                                      geom_point_size=geom_point_size,
+                                                      geom_stroke_size=geom_stroke_size)
     
     def _visualize_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str, layer_name: str,
-                       numeric, categorical, heatmap, geometries, figsize):
+                       numeric, categorical, heatmap, geometries, figsize, geom_point_size: Optional[int] = None,
+                       geom_stroke_size: Optional[float] = None):
         """Handle visualization using plot method"""
         # Create new figure for this visualization
         self.current_fig, self.current_ax = plt.subplots(1, 1, figsize=figsize)
@@ -263,7 +277,9 @@ class VisualizationTool:
         elif heatmap:
             return self._visualize_heatmap_plot(gdf, gdf_name, layer_name)
         elif geometries:
-            return self._visualize_geometries_plot(gdf, gdf_name, layer_name)
+            return self._visualize_geometries_plot(gdf, gdf_name, layer_name,
+                                                   geom_point_size=geom_point_size,
+                                                   geom_stroke_size=geom_stroke_size)
     
     def _visualize_numeric_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str, 
                            layer_name: str, params: Numeric) -> str:
@@ -376,8 +392,11 @@ class VisualizationTool:
             # If categories are provided, only plot those
             if params.categories:
                 gdf = gdf[gdf[column].isin(params.categories)]
-                
-            gdf.explore(
+            
+            # Detect if only points
+            is_point = gdf.geometry.geom_type.eq("Point").all()
+            
+            explore_kwargs = dict(
                 popup=True,
                 tooltip=column,
                 column=column,
@@ -388,8 +407,16 @@ class VisualizationTool:
                 categorical=True,
                 categories=params.categories,
                 m=self.map,
-                style_kwds={"fillOpacity": "0.85", "weight": "1.5"}
             )
+            
+            # Apply point size or stroke size
+            if is_point:
+                # geopandas.explore passes marker_kwds to folium CircleMarker
+                explore_kwargs["marker_kwds"] = {"radius": params.point_size or 5}
+            else:
+                explore_kwargs["style_kwds"] = {"fillOpacity": "0.85", "weight": params.stroke_size or 1.5}
+            
+            gdf.explore(**explore_kwargs)
             
             add_layer_control(self.map)
             fit_map(gdf, self.map)
@@ -415,7 +442,7 @@ class VisualizationTool:
             # Reproject to Web Mercator for contextily basemaps
             gdf = gdf.to_crs(epsg=3857)  # Web Mercator for contextily
 
-            # NEW — detect geometry type
+            # Detect geometry type
             is_point = gdf.geometry.geom_type.eq("Point").all()
 
             plot_kwargs = dict(
@@ -427,7 +454,7 @@ class VisualizationTool:
                 categories=params.categories
             )
 
-            # NEW — apply point size OR stroke size
+            # apply point size OR stroke size
             if is_point:
                 plot_kwargs["markersize"] = params.point_size
             else:
@@ -515,16 +542,26 @@ class VisualizationTool:
             return f"Could not create heatmap for {gdf_name}. Error: {str(e)}"
     
     def _visualize_geometries_explore(self, gdf: gpd.GeoDataFrame, gdf_name: str,
-                             layer_name: str) -> str:
+                             layer_name: str, geom_point_size: Optional[int] = None,
+                             geom_stroke_size: Optional[float] = None) -> str:
         """Visualize only geometries using explore"""
         try:
-            gdf.explore(
+            # Detect if only points
+            is_point = gdf.geometry.geom_type.eq("Point").all()
+
+            explore_kwargs = dict(
                 popup=True,
                 tooltip=False,
                 name=layer_name,
-                m=self.map,
-                style_kwds={"fillOpacity": "0.85", "weight": "1.5"}
+                m=self.map
             )
+
+            if is_point:
+                explore_kwargs["marker_kwds"] = {"radius": geom_point_size or 5}
+            else:
+                explore_kwargs["style_kwds"] = {"fillOpacity": "0.85", "weight": geom_stroke_size or 1.5}
+
+            gdf.explore(**explore_kwargs)
             
             add_layer_control(self.map)
             fit_map(gdf, self.map)
@@ -535,20 +572,34 @@ class VisualizationTool:
             return f"Could not visualize geometries of {gdf_name}. Error: {str(e)}"
     
     def _visualize_geometries_plot(self, gdf: gpd.GeoDataFrame, gdf_name: str,
-                                  layer_name: str) -> str:
+                                  layer_name: str, geom_point_size: Optional[int] = None,
+                                  geom_stroke_size: Optional[float] = None) -> str:
         """Visualize only geometries using plot"""
         try:
 
             # Reproject to Web Mercator for contextily basemaps
             gdf = gdf.to_crs(epsg=3857)  # Web Mercator
 
-            gdf.plot(
+            # Detect geometry type
+            is_point = gdf.geometry.geom_type.eq("Point").all()
+
+            plot_kwargs = dict(
                 ax=self.current_ax,
-                edgecolor='black',
-                facecolor='lightblue',
-                linewidth=0.5,
-                alpha=0.7
             )
+
+            if is_point:
+                # For point plots use markersize
+                plot_kwargs["markersize"] = geom_point_size or 5
+                gdf.plot(color='red', **plot_kwargs)
+            else:
+                # For polygons/lines use linewidth/stroke
+                gdf.plot(
+                    ax=self.current_ax,
+                    edgecolor='black',
+                    facecolor='lightblue',
+                    linewidth=geom_stroke_size or 0.5,
+                    alpha=0.7
+                )
 
             # Add basemap
             ctx.add_basemap(self.current_ax, source=ctx.providers.OpenStreetMap.Mapnik)
