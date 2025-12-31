@@ -366,6 +366,12 @@ def main():
         if selected_gdf:
             gdf = st.session_state["geodataframes"][selected_gdf]
             
+            # Determine geometry types present in GeoDataFrame
+            geom_types = gdf.geometry.type.unique().tolist()
+            has_points = any(gt in ["Point", "MultiPoint"] for gt in geom_types)
+            has_lines = any(gt in ["LineString", "MultiLineString"] for gt in geom_types)
+            has_polygons = any(gt in ["Polygon", "MultiPolygon"] for gt in geom_types)
+            
             # Show GeoDataFrame info
             with st.expander("Data", expanded=False):
                 col_a, col_b = st.columns(2)
@@ -407,11 +413,45 @@ def main():
             )
             
             
-            # Visualization type
+            # Visualization type - build options based on geometry types
+            viz_options = ["Geometries Only"]  # Always available
+            viz_disabled = []
+            viz_help_messages = []
+            
+            # Numeric and Categorical are available for all geometry types
+            numeric_cols_check = gdf.select_dtypes(include=['number']).columns.tolist()
+            numeric_cols_check = [col for col in numeric_cols_check if col != 'geometry']
+            if numeric_cols_check:
+                viz_options.append("Numeric")
+            else:
+                viz_disabled.append("Numeric")
+                viz_help_messages.append("Numeric: No numeric columns available")
+            
+            cat_cols_check = gdf.select_dtypes(include=['object', 'category']).columns.tolist()
+            cat_cols_check = [col for col in cat_cols_check if col != 'geometry']
+            if cat_cols_check:
+                viz_options.append("Categorical")
+            else:
+                viz_disabled.append("Categorical")
+                viz_help_messages.append("Categorical: No categorical columns available")
+            
+            # Heatmap only for point geometries
+            if has_points:
+                viz_options.append("Heatmap")
+            else:
+                viz_disabled.append("Heatmap")
+                viz_help_messages.append("Heatmap: Only available for point geometries")
+            
+            # Show disabled options info
+            if viz_disabled:
+                with st.expander("Disabled Options", expanded=False):
+                    for msg in viz_help_messages:
+                        st.warning(msg)
+            
             viz_type = st.radio(
                 "Visualization type",
-                ["Geometries Only", "Numeric", "Categorical", "Heatmap"],
-                help="Choose how to visualize the data"
+                viz_options,
+                help="Choose how to visualize the data. Some options may be unavailable based on geometry types and available columns."
             )
             
             st.divider()
