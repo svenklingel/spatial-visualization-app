@@ -1,4 +1,4 @@
-This app is developed using Spiral model–driven initial development and Scrum-driven iterative refinement, and utilizes Streamlit and GeoPandas to visualize user-provided GeoJSON files.
+This app was initially developed using the Spiral model, refined iteratively with Scrum, and finalized using the Waterfall model. It uses Streamlit and GeoPandas to visualize user-provided GeoJSON files as well as Shapefiles.
 
 
 ![Alt text](Example.jpeg)
