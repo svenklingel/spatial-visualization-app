@@ -25,47 +25,59 @@ def load_data(uploaded_file):
     try:
         ext = os.path.splitext(uploaded_file.name)[1][1:].lower()
 
-        # ---- GeoJSON ----
-        if ext == "geojson":
-            gdf = gpd.read_file(uploaded_file, encoding="utf-8")
-            gdf = gdf.to_crs(epsg=25832)
+        # If user specifies an EPSG code use this for the transformation to EPSG:25832
+        epsg_code = st.session_state.get("epsg_code", "").strip()
 
-            # Build spatial index
-            try:
-                _ = gdf.sindex
-            except Exception:
-                st.warning("Spatial index could not be created.")
+        def _read_geojson(f):
+            return gpd.read_file(f, encoding="utf-8")
 
-            env = st.session_state["geodataframes"]
-            gdf_name = f"gdf_{len(env)}"
-            env[gdf_name] = gdf
-            return gdf_name
-
-        # ---- Shapefile ZIP ----
-        if ext == "zip":
+        def _read_zip(f):
             import tempfile, zipfile
             tmpdir = tempfile.mkdtemp()
-
-            with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+            with zipfile.ZipFile(f, "r") as zip_ref:
                 zip_ref.extractall(tmpdir)
+            return gpd.read_file(tmpdir)
 
-            gdf = gpd.read_file(tmpdir)
-            gdf = gdf.to_crs(epsg=25832)
+        # Read file based on extension
+        if ext == "geojson":
+            gdf = _read_geojson(uploaded_file)
+        elif ext == "zip":
+            gdf = _read_zip(uploaded_file)
+        else:
+            st.error(f"Unsupported file format: {ext}")
+            return None
 
-            # Build spatial index
+        # Apply user-specified CRS if provided (override detected or missing CRS)
+        if epsg_code:
             try:
-                _ = gdf.sindex
+                gdf = gdf.set_crs(epsg=int(epsg_code), allow_override=True)
+                st.info(f"CRS set to EPSG:{epsg_code} (user-specified)")
             except Exception:
-                st.warning("Spatial index could not be created.")
+                st.warning(f"Invalid EPSG code: {epsg_code}. Using CRS from file if available.")
+        else:
+            # Show detected CRS or warn if none
+            if gdf.crs is not None:
+                st.info(f"Detected CRS: {gdf.crs.to_string()}")
+            else:
+                st.warning("No CRS detected in file. Please enter a valid EPSG code manually if known.")
 
-            env = st.session_state["geodataframes"]
-            gdf_name = f"gdf_{len(env)}"
-            env[gdf_name] = gdf
-            return gdf_name
+        # Try to reproject to target CRS
+        try:
+            gdf = gdf.to_crs(epsg=25832)
+        except Exception:
+            st.warning("Could not reproject to EPSG:25832. Keeping original CRS.")
 
-        # Unsupported
-        st.error(f"Unsupported file format: {ext}")
-        return None
+        # Build spatial index 
+        try:
+            _ = gdf.sindex
+        except Exception:
+            st.warning("Spatial index could not be created.")
+
+        # Store in session state
+        env = st.session_state["geodataframes"]
+        gdf_name = f"gdf_{len(env)}"
+        env[gdf_name] = gdf
+        return gdf_name
 
     except Exception as e:
         st.error(f"Error loading file: {e}")
@@ -192,22 +204,41 @@ def main():
             """)
         
         st.divider()
-        
+
+         # Text field to define the EPSG-code of the CRS and save it in the epsg_code session state
+        epsg_code_input = st.text_input(
+            "EPSG Code",
+            value="",
+            key="epsg_code",
+            help="Automatic CRS detection is enabled and is usually sufficient. If necessary, you can manually enter the input CRS EPSG code as a numeric value (e.g. 4326)."
+        )
+
         # File upload: GeoJSON files
         st.subheader("Upload Data")
         uploaded_files = st.file_uploader(
             "Upload GeoJSON or Shapefile ZIP",
             type=["geojson", "zip"],
-            accept_multiple_files=True,
+            accept_multiple_files=False, # Avoid multiple file uploads to ensure correct CRS determination
             key=st.session_state["file_uploader_key"],
             help="Upload one or more GeoJSON or zipped Shapefiles (.zip)."
         )
         
+        # Vorvalidierung des EPSG-Codes
+        epsg_code_value = st.session_state.get("epsg_code", "").strip()
+        if epsg_code_value:
+            try:
+                import pyproj
+                pyproj.CRS.from_epsg(int(epsg_code_value))
+                st.success(f"EPSG code {epsg_code_value} is valid.")
+            except (ValueError, pyproj.exceptions.CRSError):
+                st.error(f"Invalid EPSG code: {epsg_code_value}. Please enter a valid EPSG number.")
+            except Exception as e:
+                st.warning(f"Error during validation: {e}")
+
         if uploaded_files:
-            for file in uploaded_files:
-                gdf_name = load_data(file)
-                if gdf_name:
-                    st.success(f"Loaded: {gdf_name}")
+            gdf_name = load_data(uploaded_files)
+            if gdf_name:
+                st.success(f"Loaded: {gdf_name}")
             # Update key to reset uploader
             st.session_state["file_uploader_key"] += 1
             st.rerun()
@@ -585,7 +616,7 @@ def main():
             # Visualize geometries only
             else: 
                 st.subheader("Geometries")
-                st.info("Basic geometry visualization without classification")
+                st.info("Basic geometry visualization without attribute-based styling")
                 # NEW — point size and stroke width for geometries-only
                 geom_point_size = st.number_input(
                     "Point size (geometries)",
